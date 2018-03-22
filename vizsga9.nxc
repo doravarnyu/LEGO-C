@@ -1,0 +1,148 @@
+#define BLACK 1
+#define BLUE 2
+#define GREEN 3
+#define YELLOW 4
+#define WHITE 5
+
+int FLOOR = 0;
+int LINE = BLACK;
+int LINE_INTERSECTION = BLUE;
+int LABYRINTH = YELLOW;
+int LABYRINTH_EXIT = GREEN;
+
+int speed = 55;
+int rotation = 25;
+int baserotation = 30;
+int tavolsag;
+
+int lastState = BLACK;
+
+task labyrinth();
+task parking();
+
+inline void init()
+{
+   SetSensorTouch(IN_1);
+   SetSensorColorFull(IN_3);
+   SetSensorLowspeed(IN_4);
+   SetSensorLowspeed(IN_2);
+   ResetTachoCount(OUT_AC);
+}
+
+task line_tracking()
+{
+	while(true)
+    {
+		NumOut(0, LCD_LINE4,(tavolsag + MotorTachoCount(OUT_A))/360*13.2, FALSE);
+        if (Sensor(IN_3) == LINE)
+        {
+			OnFwdSync(OUT_AC, speed, baserotation);
+            lastState = LINE;
+        }
+        else if (Sensor(IN_3) == LINE_INTERSECTION)
+        {
+            if (lastState == LINE)
+            {
+				OnFwdSync(OUT_AC, speed*1.5, -baserotation/2);
+                Wait(150);
+            }
+            else
+				OnFwdSync(OUT_AC, speed*1.5, baserotation/2);
+            lastState = LINE_INTERSECTION;
+        }
+        else
+        {
+			if (lastState == LINE_INTERSECTION)
+            {
+                tavolsag = tavolsag + MotorTachoCount(OUT_A);
+                ResetTachoCount(OUT_AC);
+                OnFwdSync(OUT_AC, speed, -100);
+                while(MotorTachoCount(OUT_A)<250 && Sensor(IN_3) != LINE);
+                if (MotorTachoCount(OUT_A) >= 250)
+                {
+                    OnFwdSync(OUT_AC, speed, 100);
+                    while (Sensor(IN_3) != LINE);
+                }
+            }
+            else
+            {
+				tavolsag = tavolsag + MotorTachoCount(OUT_A);
+				ResetTachoCount(OUT_AC);
+                OnFwdSync(OUT_AC, speed, -100);
+                while(MotorTachoCount(OUT_A)<250 && Sensor(IN_3) != LINE);
+                if (MotorTachoCount(OUT_A) >= 250)
+                {
+                    OnFwdSync(OUT_AC, speed, 100);
+                    while (Sensor(IN_3) != LINE);
+                }
+				lastState = FLOOR;
+            }
+         }
+    }
+}
+
+task labyrinth()
+{
+    OnFwdSync(OUT_AC, speed,0);
+    while(Sensor(IN_2) == LABYRINTH){}
+    while(true)
+    {
+        if (Sensor(IN_3) == LABYRINTH)
+        {
+            OnRevSync(OUT_AC, speed, 100);
+            Wait(100);
+            OnFwdSync(OUT_AC, speed, 100);
+        }
+        else if (Sensor(IN_3) == LABYRINTH_EXIT)
+        {
+			ExitTo(parking);
+        }
+        else
+        {
+			OnFwdSync(OUT_AC, speed, -20);
+        }
+    }
+}
+
+task parking()
+{
+    int distance = 0;
+    while(true) //addig megy elõre, amíg meg nem találja a helyet=nagy távot
+    {
+        OnFwd(OUT_AC, speed);
+        if (SensorUS(IN_2) > 22) {
+            distance = distance + 1;
+            if(distance > 70){
+                    Off(OUT_AC);
+                    ResetTachoCount(OUT_A);
+                    RotateMotor(OUT_A, speed, -420);
+                    Off(OUT_AC);
+                    OnRev(OUT_AC, speed);
+                    while(Sensor(IN_1) != 1);
+                    Off(OUT_AC);
+                    Wait(1000);
+                    OnFwd(OUT_AC, speed);
+                    while(Sensor(IN_3) != BLUE);
+                    Off(OUT_AC);
+                    ResetTachoCount(OUT_A);
+                    RotateMotor(OUT_A, speed, 420);
+                    Off(OUT_AC);
+                    Stop(true);
+            }
+        }
+        else {
+			distance = 0;
+        }
+    }
+}
+
+task main(){
+
+    init();
+
+    while(Sensor(IN_1)!=1);  //várakozás a touch lenyomására
+
+    //start line_tracking;
+    //start labyrinth;
+    start parking;
+}

@@ -1,0 +1,69 @@
+#define dT 0.02
+#define Ultrahang IN_4
+
+#define P 1.0
+#define I 0.0
+#define D 0.2
+
+task main() {
+  int integral = 0;
+  int lastError = 0;
+  // 30cm-es távolság tartása
+  int setpoint = 30;
+
+  // Ultrahangszenzor inicializálása
+  SetSensorLowspeed(Ultrahang);
+
+  while(1) {
+    int input = SensorUS(Ultrahang);
+    int error = 0;
+    int deriv = 0;
+    int output = 0;
+    
+    NumOut(1, LCD_LINE2, input, FALSE);
+
+    // Ezen a tartományon még megbízhatóan muködik
+    if (input > 200) {
+      input = 200;
+    }
+
+    // Hiba számítása
+    error = setpoint - input;
+
+    // Integrál számítása
+    integral = integral + (error * dT);
+
+    // Integráló tag limitálása
+    if (integral > 5) {
+      integral = 5;
+    } else if(integral < -5) {
+      integral = -5;
+    }
+
+    // Derivált számítása
+    deriv = (error - lastError) / dT;
+    lastError = error;
+
+    // Beavatkozójel számítása
+    output = P * error + I * integral + D * deriv;
+
+    // Beavatkozójel korlátozása
+    if (output > 100) {
+      output = 100;
+    } else if (output < -100) {
+      output = -100;
+    }
+
+    // Beavatkozójel érvényre juttatása (az irány a motorok állásától függhet rover-enként)
+    OnFwdSync(OUT_AC, (-1 * output), 0);
+
+    // Távolság (szabályzott jellemzo) megjelenítés
+    NumOut(0, LCD_LINE1, input, TRUE);
+
+    // dT miliszekundumokban
+    Wait(20);
+  }
+
+  Off(OUT_AC);
+}
+
